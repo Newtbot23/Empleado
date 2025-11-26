@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\empleado;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class EmpleadoController extends Controller
 {
@@ -29,13 +30,29 @@ class EmpleadoController extends Controller
      */
     public function store(Request $request)
     {
+        //validacion de los campos al crear un registro
+        $validacion = [
+            'Nombre' => 'required|string|max:90',
+            'PriApellido' => 'required|string|max:90',
+            'SegApellido' => 'required|string|max:90',
+            'Correo' => 'required|string|max:90',
+            'Foto' => 'required|image|max:10240',
+        ];
+        $msj = [
+            'required' => 'El :attribute es requerido',
+        ];
+        if ($request->hasfile('Foto')) {
+            $validacion = ['Foto' => 'required|max:10000|mimes:jpg,png,jpeg'];
+            $msj = ['Foto.required' => 'La :attribute es obligatoria'];
+        }
+        $this->validate($request, $validacion, $msj);
         //imprimir los datos del formulario
         $datosEmpleado = $request->except('_token');
         if ($request->hasFile('Foto')) {
             $datosEmpleado['Foto'] = $request->file('Foto')->store('fotos', 'public');
         }
         empleado::insert($datosEmpleado);
-        return redirect('empleado');
+        return redirect('empleado')->with('mensaje', 'Registro Ingresado con exito');
     }
 
     /**
@@ -61,10 +78,14 @@ class EmpleadoController extends Controller
     public function update(Request $request, $id)
     {
         $datosEmpleado = $request->except(['_token', '_method']);
-        empleado::where('id', '=', $id)->update($datosEmpleado);
 
+        // verificacion foto nueva 
+        if ($request->hasfile('Foto')) {
+            $datosEmpleado['Foto'] = $request->file('Foto')->store('uploads', 'public');
+        }
+        empleado::where('id', '=', $id)->update($datosEmpleado);
         $empleado = empleado::findOrFail($id);
-        return view('empleados.update', compact('empleado'));
+        return redirect('empleados')->with('mensaje', 'Registro Actualizado con exito');
     }
 
     /**
@@ -72,7 +93,10 @@ class EmpleadoController extends Controller
      */
     public function destroy($id)
     {
-        empleado::destroy($id);
-        return redirect('empleado');
+        $empleado = empleado::findOrFail($id);
+        if (Storage::delete('public/' . $empleado->Foto)) {
+            empleado::destroy($id);
+        }
+        return redirect('empleado')->with('mensaje', 'Registro Eliminado con exito');
     }
 }
